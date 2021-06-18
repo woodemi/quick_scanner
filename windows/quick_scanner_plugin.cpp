@@ -2,6 +2,9 @@
 
 // This must be included before many other Windows headers.
 #include <windows.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.Devices.Enumeration.h>
 
 // For getPlatformVersion; remove unless needed for your plugin implementation.
 #include <VersionHelpers.h>
@@ -13,6 +16,11 @@
 #include <map>
 #include <memory>
 #include <sstream>
+
+using namespace winrt;
+using namespace Windows::Foundation;
+using namespace Windows::Foundation::Collections;
+using namespace Windows::Devices::Enumeration;
 
 namespace {
 
@@ -29,6 +37,14 @@ class QuickScannerPlugin : public flutter::Plugin {
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+  
+  DeviceWatcher deviceWatcher{ nullptr };
+
+  winrt::event_token deviceWatcherAddedToken;
+  void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation info);
+
+  winrt::event_token deviceWatcherRemovedToken;
+  void DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate infoUpdate);
 };
 
 // static
@@ -49,9 +65,17 @@ void QuickScannerPlugin::RegisterWithRegistrar(
   registrar->AddPlugin(std::move(plugin));
 }
 
-QuickScannerPlugin::QuickScannerPlugin() {}
+QuickScannerPlugin::QuickScannerPlugin() {
+  deviceWatcher = DeviceInformation::CreateWatcher(DeviceClass::ImageScanner);
+  deviceWatcherAddedToken = deviceWatcher.Added({ this, &QuickScannerPlugin::DeviceWatcher_Added });
+  deviceWatcherRemovedToken = deviceWatcher.Removed({ this, &QuickScannerPlugin::DeviceWatcher_Removed });
+}
 
-QuickScannerPlugin::~QuickScannerPlugin() {}
+QuickScannerPlugin::~QuickScannerPlugin() {
+  deviceWatcher.Added(deviceWatcherAddedToken);
+  deviceWatcher.Removed(deviceWatcherRemovedToken);
+  deviceWatcher = nullptr;
+}
 
 void QuickScannerPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &method_call,
@@ -67,9 +91,23 @@ void QuickScannerPlugin::HandleMethodCall(
       version_stream << "7";
     }
     result->Success(flutter::EncodableValue(version_stream.str()));
+  } else if (method_call.method_name().compare("startWatch") == 0) {
+    deviceWatcher.Start();
+    result->Success(nullptr);
+  } else if (method_call.method_name().compare("stopWatch") == 0) {
+    deviceWatcher.Stop();
+    result->Success(nullptr);
   } else {
     result->NotImplemented();
   }
+}
+
+void QuickScannerPlugin::DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation info) {
+  std::cout << "DeviceWatcher_Added " << winrt::to_string(info.Id()) << std::endl;
+}
+
+void QuickScannerPlugin::DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate infoUpdate) {
+  std::cout << "DeviceWatcher_Removed " << winrt::to_string(infoUpdate.Id()) << std::endl;
 }
 
 }  // namespace
