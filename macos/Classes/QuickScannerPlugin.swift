@@ -11,6 +11,8 @@ public class QuickScannerPlugin: NSObject, FlutterPlugin {
 
   private var deviceBrowser: ICDeviceBrowser!
     
+  private var scanners: [String] = []
+    
   override public init() {
     super.init()
     deviceBrowser = ICDeviceBrowser()
@@ -29,6 +31,8 @@ public class QuickScannerPlugin: NSObject, FlutterPlugin {
     case "stopWatch":
       deviceBrowser.stop()
       result(nil)
+    case "getScanners":
+      result(scanners)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -38,9 +42,15 @@ public class QuickScannerPlugin: NSObject, FlutterPlugin {
 extension QuickScannerPlugin: ICDeviceBrowserDelegate {
   public func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
     print("deviceBrowser:\(browser) didAdd:\(device.name) moreComing:\(moreComing)")
+    if !scanners.contains(device.uuidString!) {
+      scanners.append(device.uuidString!)
+    }
   }
     
   public func deviceBrowser(_ browser: ICDeviceBrowser, didRemove device: ICDevice, moreGoing: Bool) {
     print("deviceBrowser:\(browser) didRemove:\(device.name) moreGoing:\(moreGoing)")
+    if scanners.contains(device.uuidString!) {
+      scanners.removeAll(where: { $0 == device.uuidString! })
+    }
   }
 }

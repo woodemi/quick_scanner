@@ -38,6 +38,18 @@ class _MyAppState extends State<MyApp> {
                 ),
               ],
             ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  child: Text('getScanners'),
+                  onPressed: () async {
+                    var scanners = await QuickScanner.getScanners();
+                    scanners.forEach(print);
+                  },
+                ),
+              ],
+            ),
           ],
         ),
       ),
