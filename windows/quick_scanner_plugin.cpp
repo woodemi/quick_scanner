@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <sstream>
+// #include <algorithm>
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -45,6 +46,8 @@ class QuickScannerPlugin : public flutter::Plugin {
 
   winrt::event_token deviceWatcherRemovedToken;
   void DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate infoUpdate);
+
+  std::vector<std::string> scanners_{};
 };
 
 // static
@@ -97,6 +100,12 @@ void QuickScannerPlugin::HandleMethodCall(
   } else if (method_call.method_name().compare("stopWatch") == 0) {
     deviceWatcher.Stop();
     result->Success(nullptr);
+  } else if (method_call.method_name().compare("getScanners") == 0) {
+    flutter::EncodableList list{};
+    for (auto scanner : scanners_) {
+      list.push_back(flutter::EncodableValue(scanner));
+    }
+    result->Success(list);
   } else {
     result->NotImplemented();
   }
@@ -104,10 +113,22 @@ void QuickScannerPlugin::HandleMethodCall(
 
 void QuickScannerPlugin::DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation info) {
   std::cout << "DeviceWatcher_Added " << winrt::to_string(info.Id()) << std::endl;
+
+  auto deviceId = winrt::to_string(info.Id());
+  auto it = std::find(scanners_.begin(), scanners_.end(), deviceId);
+  if (it == scanners_.end()) {
+    scanners_.push_back(deviceId);
+  }
 }
 
 void QuickScannerPlugin::DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate infoUpdate) {
   std::cout << "DeviceWatcher_Removed " << winrt::to_string(infoUpdate.Id()) << std::endl;
+
+  auto deviceId = winrt::to_string(infoUpdate.Id());
+  auto it = std::find(scanners_.begin(), scanners_.end(), deviceId);
+  if (it != scanners_.end()) {
+    scanners_.erase(it);
+  }
 }
 
 }  // namespace
