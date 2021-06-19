@@ -15,4 +15,9 @@ class QuickScanner {
   static Future<void> startWatch() => _channel.invokeMethod('startWatch');
 
   static Future<void> stopWatch() => _channel.invokeMethod('stopWatch');
+
+  static Future<List<String>> getScanners() async {
+    List list = await _channel.invokeMethod('getScanners');
+    return list.cast();
+  }
 }
