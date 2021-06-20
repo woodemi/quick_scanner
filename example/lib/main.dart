@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:quick_scanner/quick_scanner.dart';
 
@@ -12,6 +13,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  List<String> _scanners = [];
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -44,8 +47,21 @@ class _MyAppState extends State<MyApp> {
                 ElevatedButton(
                   child: Text('getScanners'),
                   onPressed: () async {
-                    var scanners = await QuickScanner.getScanners();
-                    scanners.forEach(print);
+                    var list = await QuickScanner.getScanners();
+                    _scanners.addAll(list);
+                    _scanners.forEach(print);
+                  },
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  child: Text('scan'),
+                  onPressed: () async {
+                    var directory = await getApplicationDocumentsDirectory();
+                    QuickScanner.scanFile(_scanners.first, directory.path);
                   },
                 ),
               ],
