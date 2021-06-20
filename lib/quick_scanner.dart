@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:flutter/services.dart';
@@ -20,4 +19,13 @@ class QuickScanner {
     List list = await _channel.invokeMethod('getScanners');
     return list.cast();
   }
+
+  static Future<void> scanFile(
+    String deviceId,
+    String directory
+  ) =>
+      _channel.invokeMethod('scanFile', {
+        'deviceId': deviceId,
+        'directory': directory,
+      });
 }
