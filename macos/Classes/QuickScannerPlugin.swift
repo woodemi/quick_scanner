@@ -11,7 +11,7 @@ public class QuickScannerPlugin: NSObject, FlutterPlugin {
 
   private var deviceBrowser: ICDeviceBrowser!
     
-  private var scanners: [String] = []
+  private var scanners: [ICScannerDevice] = []
     
   override public init() {
     super.init()
@@ -32,25 +32,105 @@ public class QuickScannerPlugin: NSObject, FlutterPlugin {
       deviceBrowser.stop()
       result(nil)
     case "getScanners":
-      result(scanners)
+      result(scanners.map { $0.uuidString })
+    case "scanFile":
+      let args = call.arguments as! [String:Any]
+      let deviceId = args["deviceId"] as! String
+      let directory = args["directory"] as! String
+      scanFile(deviceId, directory: directory)
+      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+    
+  private func scanFile(_ deviceId: String, directory: String) {
+    let scanner = scanners.first { $0.uuidString == deviceId }!
+    scanner.delegate = self
+    scanner.transferMode = .fileBased
+    scanner.downloadsDirectory = URL(fileURLWithPath: directory)
+    scanner.requestOpenSession()
+  }
+    
+  private func scanFileFlatbed(_ scanner: ICScannerDevice) {
+    let functionalUnit = scanner.selectedFunctionalUnit
+
+    let physicalSize = functionalUnit.physicalSize
+    functionalUnit.scanArea = NSMakeRect(0, 0, physicalSize.width, physicalSize.height)
+
+    let support1Bit = functionalUnit.supportedBitDepths.contains(Int(ICScannerBitDepth.depth1Bit.rawValue))
+    if support1Bit && functionalUnit.supportedBitDepths.count == 1 {
+        functionalUnit.pixelDataType = .BW
+        functionalUnit.bitDepth = .depth1Bit
+    } else {
+        // TODO other mode
+        functionalUnit.pixelDataType = .RGB
+        functionalUnit.bitDepth = .depth8Bits
+    }
+    
+    scanner.requestScan()
   }
 }
 
 extension QuickScannerPlugin: ICDeviceBrowserDelegate {
   public func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
-    print("deviceBrowser:\(browser) didAdd:\(device.name) moreComing:\(moreComing)")
-    if !scanners.contains(device.uuidString!) {
-      scanners.append(device.uuidString!)
+    print("deviceBrowser:\(browser) didAdd:\(device.uuidString) moreComing:\(moreComing)")
+    if !scanners.contains(where: { $0.uuidString == device.uuidString }) {
+      scanners.append(device as! ICScannerDevice)
     }
   }
     
   public func deviceBrowser(_ browser: ICDeviceBrowser, didRemove device: ICDevice, moreGoing: Bool) {
-    print("deviceBrowser:\(browser) didRemove:\(device.name) moreGoing:\(moreGoing)")
-    if scanners.contains(device.uuidString!) {
-      scanners.removeAll(where: { $0 == device.uuidString! })
+    print("deviceBrowser:\(browser) didRemove:\(device.uuidString) moreGoing:\(moreGoing)")
+    if scanners.contains(where: { $0.uuidString == device.uuidString }) {
+        scanners.removeAll { $0.uuidString == device.uuidString! }
     }
+  }
+}
+
+extension QuickScannerPlugin: ICDeviceDelegate {
+  public func device(_ device: ICDevice, didOpenSessionWithError error: Error?) {
+    print("device:\(device.uuidString) didOpenSessionWithError:\(error)")
+  }
+
+  public func device(_ device: ICDevice, didCloseSessionWithError error: Error?) {
+    print("device:\(device.uuidString) didCloseSessionWithError:\(error)")
+  }
+
+  public func didRemove(_ device: ICDevice) {
+    print("didRemove:\(device.uuidString)")
+  }
+
+  public func deviceDidBecomeReady(_ device: ICDevice) {
+    print("deviceDidBecomeReady:\(device.uuidString)")
+    let scanner = device as! ICScannerDevice
+    let supportDocumentFeeder = scanner.availableFunctionalUnitTypes.contains(ICScannerFunctionalUnitType.documentFeeder.rawValue as NSNumber)
+    if supportDocumentFeeder {
+      // TODO
+    }
+    scanner.requestSelect(.flatbed)
+  }
+}
+
+extension QuickScannerPlugin: ICScannerDeviceDelegate {
+  public func scannerDeviceDidBecomeAvailable(_ scanner: ICScannerDevice) {
+    print("scannerDeviceDidBecomeAvailable:\(scanner.uuidString)")
+  }
+
+  public func scannerDevice(_ scanner: ICScannerDevice, didSelect functionalUnit: ICScannerFunctionalUnit, error: Error?) {
+    print("scannerDevice:\(scanner.uuidString) didSelectFunctionalUnit:\(functionalUnit) error:\(error)")
+    // FIXME: functionalUnit may be nil
+    if functionalUnit != nil && functionalUnit.type == .flatbed {
+      scanFileFlatbed(scanner)
+    }
+  }
+
+  public func scannerDevice(_ scanner: ICScannerDevice, didScanTo url: URL) {
+    print("scannerDevice:\(scanner.uuidString) didScanTo:\(url)")
+  }
+
+  public func scannerDevice(_ scanner: ICScannerDevice, didCompleteScanWithError error: Error?) {
+    print("scannerDevice:\(scanner.uuidString) didCompleteScanWithError:\(error)")
+    scanner.requestCloseSession()
   }
 }

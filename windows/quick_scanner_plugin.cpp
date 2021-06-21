@@ -5,6 +5,8 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Devices.Enumeration.h>
+#include <winrt/Windows.Devices.Scanners.h>
+#include <winrt/Windows.Storage.h>
 
 // For getPlatformVersion; remove unless needed for your plugin implementation.
 #include <VersionHelpers.h>
@@ -16,12 +18,13 @@
 #include <map>
 #include <memory>
 #include <sstream>
-// #include <algorithm>
 
 using namespace winrt;
 using namespace Windows::Foundation;
 using namespace Windows::Foundation::Collections;
 using namespace Windows::Devices::Enumeration;
+using namespace Windows::Devices::Scanners;
+using namespace Windows::Storage;
 
 namespace {
 
@@ -48,6 +51,8 @@ class QuickScannerPlugin : public flutter::Plugin {
   void DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate infoUpdate);
 
   std::vector<std::string> scanners_{};
+
+  winrt::fire_and_forget ScanFileAsync(std::string device_id, std::string directory);
 };
 
 // static
@@ -106,6 +111,12 @@ void QuickScannerPlugin::HandleMethodCall(
       list.push_back(flutter::EncodableValue(scanner));
     }
     result->Success(list);
+  } else if (method_call.method_name().compare("scanFile") == 0) {
+    auto args = std::get<flutter::EncodableMap>(*method_call.arguments());
+    auto device_id = std::get<std::string>(args[flutter::EncodableValue("deviceId")]);
+    auto directory = std::get<std::string>(args[flutter::EncodableValue("directory")]);
+    ScanFileAsync(device_id, directory);
+    result->Success(nullptr);
   } else {
     result->NotImplemented();
   }
@@ -114,20 +125,45 @@ void QuickScannerPlugin::HandleMethodCall(
 void QuickScannerPlugin::DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation info) {
   std::cout << "DeviceWatcher_Added " << winrt::to_string(info.Id()) << std::endl;
 
-  auto deviceId = winrt::to_string(info.Id());
-  auto it = std::find(scanners_.begin(), scanners_.end(), deviceId);
+  auto device_id = winrt::to_string(info.Id());
+  auto it = std::find(scanners_.begin(), scanners_.end(), device_id);
   if (it == scanners_.end()) {
-    scanners_.push_back(deviceId);
+    scanners_.push_back(device_id);
   }
 }
 
 void QuickScannerPlugin::DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate infoUpdate) {
   std::cout << "DeviceWatcher_Removed " << winrt::to_string(infoUpdate.Id()) << std::endl;
 
-  auto deviceId = winrt::to_string(infoUpdate.Id());
-  auto it = std::find(scanners_.begin(), scanners_.end(), deviceId);
+  auto device_id = winrt::to_string(infoUpdate.Id());
+  auto it = std::find(scanners_.begin(), scanners_.end(), device_id);
   if (it != scanners_.end()) {
     scanners_.erase(it);
+  }
+}
+
+winrt::fire_and_forget QuickScannerPlugin::ScanFileAsync(std::string device_id, std::string directory) {
+  auto scanner = co_await ImageScanner::FromIdAsync(winrt::to_hstring(device_id));
+
+  if (scanner.IsScanSourceSupported(ImageScannerScanSource::Feeder)) {
+    // TODO
+  }
+
+  auto flatbedConfiguration = scanner.FlatbedConfiguration();
+  auto supportGrayscale = flatbedConfiguration.IsColorModeSupported(ImageScannerColorMode::Grayscale);
+  auto supportColor = flatbedConfiguration.IsColorModeSupported(ImageScannerColorMode::Color);
+  if (!supportGrayscale && !supportColor) {
+    flatbedConfiguration.ColorMode(ImageScannerColorMode::Monochrome);
+  } else {
+    // TODO other mode
+    flatbedConfiguration.ColorMode(ImageScannerColorMode::Color);
+  }
+
+  auto storageFolder = co_await StorageFolder::GetFolderFromPathAsync(winrt::to_hstring(directory));
+  auto result = co_await scanner.ScanFilesToFolderAsync(ImageScannerScanSource::Flatbed, storageFolder);
+
+  for (auto file : result.ScannedFiles()) {
+    std::cout << "ScannedFile: " << winrt::to_string(file.Path()) << std::endl;
   }
 }
 
