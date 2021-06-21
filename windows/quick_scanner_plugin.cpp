@@ -52,7 +52,9 @@ class QuickScannerPlugin : public flutter::Plugin {
 
   std::vector<std::string> scanners_{};
 
-  winrt::fire_and_forget ScanFileAsync(std::string device_id, std::string directory);
+  winrt::fire_and_forget ScanFileAsync(std::string device_id, std::string directory,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result
+  );
 };
 
 // static
@@ -115,8 +117,8 @@ void QuickScannerPlugin::HandleMethodCall(
     auto args = std::get<flutter::EncodableMap>(*method_call.arguments());
     auto device_id = std::get<std::string>(args[flutter::EncodableValue("deviceId")]);
     auto directory = std::get<std::string>(args[flutter::EncodableValue("directory")]);
-    ScanFileAsync(device_id, directory);
-    result->Success(nullptr);
+    ScanFileAsync(device_id, directory, std::move(result));
+    //result->Success(nullptr);
   } else {
     result->NotImplemented();
   }
@@ -142,7 +144,8 @@ void QuickScannerPlugin::DeviceWatcher_Removed(DeviceWatcher sender, DeviceInfor
   }
 }
 
-winrt::fire_and_forget QuickScannerPlugin::ScanFileAsync(std::string device_id, std::string directory) {
+winrt::fire_and_forget QuickScannerPlugin::ScanFileAsync(std::string device_id, std::string directory,
+  std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
   auto scanner = co_await ImageScanner::FromIdAsync(winrt::to_hstring(device_id));
 
   if (scanner.IsScanSourceSupported(ImageScannerScanSource::Feeder)) {
@@ -159,11 +162,13 @@ winrt::fire_and_forget QuickScannerPlugin::ScanFileAsync(std::string device_id, 
     flatbedConfiguration.ColorMode(ImageScannerColorMode::Color);
   }
 
-  auto storageFolder = co_await StorageFolder::GetFolderFromPathAsync(winrt::to_hstring(directory));
-  auto result = co_await scanner.ScanFilesToFolderAsync(ImageScannerScanSource::Flatbed, storageFolder);
-
-  for (auto file : result.ScannedFiles()) {
-    std::cout << "ScannedFile: " << winrt::to_string(file.Path()) << std::endl;
+  try {
+    auto storageFolder = co_await StorageFolder::GetFolderFromPathAsync(winrt::to_hstring(directory));
+    auto scanResult = co_await scanner.ScanFilesToFolderAsync(ImageScannerScanSource::Flatbed, storageFolder);
+    auto path = scanResult.ScannedFiles().First().Current().Path();
+    result->Success(flutter::EncodableValue(winrt::to_string(path)));
+  } catch (winrt::hresult_error const& ex) {
+    result->Error(std::to_string(ex.code()), winrt::to_string(ex.message()));
   }
 }
 

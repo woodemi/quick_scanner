@@ -20,12 +20,11 @@ class QuickScanner {
     return list.cast();
   }
 
-  static Future<void> scanFile(
-    String deviceId,
-    String directory
-  ) =>
-      _channel.invokeMethod('scanFile', {
-        'deviceId': deviceId,
-        'directory': directory,
-      });
+  static Future<String> scanFile(String deviceId, String directory) async {
+    String path = await _channel.invokeMethod('scanFile', {
+      'deviceId': deviceId,
+      'directory': directory,
+    });
+    return path;
+  }
 }

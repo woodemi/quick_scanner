@@ -37,12 +37,14 @@ public class QuickScannerPlugin: NSObject, FlutterPlugin {
       let args = call.arguments as! [String:Any]
       let deviceId = args["deviceId"] as! String
       let directory = args["directory"] as! String
+      scanFileResult = result
       scanFile(deviceId, directory: directory)
-      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
   }
+    
+  private var scanFileResult:FlutterResult? = nil
     
   private func scanFile(_ deviceId: String, directory: String) {
     let scanner = scanners.first { $0.uuidString == deviceId }!
@@ -127,10 +129,16 @@ extension QuickScannerPlugin: ICScannerDeviceDelegate {
 
   public func scannerDevice(_ scanner: ICScannerDevice, didScanTo url: URL) {
     print("scannerDevice:\(scanner.uuidString) didScanTo:\(url)")
+    scanFileResult?(url.path)
+    scanFileResult = nil
   }
 
   public func scannerDevice(_ scanner: ICScannerDevice, didCompleteScanWithError error: Error?) {
     print("scannerDevice:\(scanner.uuidString) didCompleteScanWithError:\(error)")
+    if let e = error {
+      scanFileResult?(FlutterError(code: "ScanError", message: e.localizedDescription, details: nil))
+      scanFileResult = nil
+    }
     scanner.requestCloseSession()
   }
 }

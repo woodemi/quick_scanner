@@ -61,7 +61,8 @@ class _MyAppState extends State<MyApp> {
                   child: Text('scan'),
                   onPressed: () async {
                     var directory = await getApplicationDocumentsDirectory();
-                    QuickScanner.scanFile(_scanners.first, directory.path);
+                    var scannedFile = await QuickScanner.scanFile(_scanners.first, directory.path);
+                    print('scannedFile $scannedFile');
                   },
                 ),
               ],
