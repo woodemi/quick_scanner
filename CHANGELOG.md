@@ -1,3 +1,4 @@
-## 0.0.1
+## 0.1.0
 
-* TODO: Describe initial release.
+- Add `startWatch`/`stopWatch` and `getScanners`
+- Add `scanFile`
